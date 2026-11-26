@@ -1,0 +1,11 @@
+{
+  "name": "starter-kit",
+  "version": "0.1.0",
+  "description": "A starter Claude Code plugin with an example slash command, skill, hook, subagent and MCP server.",
+  "author": {
+    "name": "contentcliper62-cell"
+  },
+  "repository": "https://github.com/contentcliper62-cell/basic-template-",
+  "license": "MIT",
+  "keywords": ["template", "starter", "example"]
+}
