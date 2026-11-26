@@ -4,7 +4,7 @@
 // SDK: npm install @modelcontextprotocol/sdk
 "use strict";
 
-const readline = require("node:readline");
+const readline = require("readline");
 
 const SERVER_INFO = { name: "starter-kit-tools", version: "0.1.0" };
 
