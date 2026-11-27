@@ -13,7 +13,8 @@ Spec (JSON):
   fit          "crop" (fill frame, use crop_x 0..1 to pick the focus) or "blur" (whole
                frame over a blurred copy; best for two-shots)
   crop_x       0..1 horizontal focus for crop mode (0.5 = centre)
-  end_card     key art / title logo image for the 2.5 s end card
+  end_card     end card image; "{phase}" is replaced by sat/tonight/streaming
+               (default clips/refs/cards/endcard_{phase}.png, built by make_cards.py)
   end_secs     end card length (2-3 s, default 2.5)
   output       output .mp4 path
 
@@ -33,12 +34,17 @@ W, H = 1080, 1920
 FONT = "Inter"
 
 
-def cta_for(post_at: datetime) -> str:
+def phase_for(post_at: datetime) -> str:
     if post_at.date() < PREMIERE.date():
-        return f"{TITLE} premieres Sat., Nov. 28 at 10/9c on Lifetime"
-    if post_at < PREMIERE:
-        return f"{TITLE} premieres TONIGHT at 10/9c on Lifetime"
-    return f"{TITLE} is streaming now on Lifetime"
+        return "sat"
+    return "tonight" if post_at < PREMIERE else "streaming"
+
+
+CTAS = {
+    "sat": f"{TITLE} premieres Sat., Nov. 28 at 10/9c on Lifetime",
+    "tonight": f"{TITLE} premieres TONIGHT at 10/9c on Lifetime",
+    "streaming": f"{TITLE} is streaming now on Lifetime",
+}
 
 
 def secs(t) -> float:
@@ -104,9 +110,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     ev.append(f"Dialogue: 2,{ass_time(0)},{ass_time(min(hook_secs, dur))},Hook,,0,0,0,,{{\\fad(0,250)}}{ass_text(hook)}")
     for a, b, t in caps:
         ev.append(f"Dialogue: 1,{ass_time(a)},{ass_time(b)},Cap,,0,0,0,,{ass_text(t)}")
-    # CTA banner: last 4 s of the scene and through the end card
-    ev.append(f"Dialogue: 3,{ass_time(max(dur - 4, hook_secs))},{ass_time(total)},CTA,,0,0,0,,{ass_text(cta)}")
+    # CTA banner over the last 4 s of the scene; the end card carries its own date block
+    ev.append(f"Dialogue: 3,{ass_time(max(dur - 4, hook_secs))},{ass_time(dur)},CTA,,0,0,0,,{ass_text(cta)}")
     open(path, "w", encoding="utf-8").write(hdr + "\n".join(ev) + "\n")
+
+
+def ffprobe_aspect(path):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                          "stream=width,height", "-of", "csv=p=0", path],
+                         capture_output=True, text=True, check=True).stdout.strip().split(",")
+    return int(out[0]) / int(out[1])
 
 
 def main():
@@ -116,7 +129,9 @@ def main():
     args = ap.parse_args()
     spec = json.load(open(args.spec))
     post_at = datetime.fromisoformat(args.post_at).replace(tzinfo=ET) if args.post_at else datetime.now(ET)
-    cta = spec.get("cta") or cta_for(post_at)
+    phase = phase_for(post_at)
+    cta = spec.get("cta") or CTAS[phase]
+    end_card = spec.get("end_card", "clips/refs/cards/endcard_{phase}.png").format(phase=phase)
 
     start, end = secs(spec["in"]), secs(spec["out"])
     dur = end - start
@@ -141,7 +156,8 @@ def main():
         scene = (f"[0:v]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
                  f"boxblur=30:3,eq=brightness=-0.12[bg];[b]scale={W}:-2[fg];"
                  f"[bg][fg]overlay=0:(H-h)/2,setsar=1,fps=30[sv]")
-    card = (f"[1:v]split[c1][c2];[c1]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+    card_is_vertical = abs(ffprobe_aspect(end_card) - W / H) < 0.02
+    card = (f"[1:v]scale={W}:{H},setsar=1,fps=30,trim=duration={end_secs}[cv]" if card_is_vertical else f"[1:v]split[c1][c2];[c1]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
             f"boxblur=40:3,eq=brightness=-0.2[cbg];[c2]scale={W - 120}:{H - 700}:force_original_aspect_ratio=decrease[cfg];"
             f"[cbg][cfg]overlay=(W-w)/2:(H-h)/2-120,setsar=1,fps=30,trim=duration={end_secs}[cv]")
     ass_esc = ass.replace(":", r"\:")
@@ -152,7 +168,7 @@ def main():
           f"[v]subtitles='{ass_esc}':fontsdir=/usr/share/fonts[vo]")
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
            "-ss", str(start), "-t", str(dur), "-i", spec["source"],
-           "-loop", "1", "-t", str(end_secs), "-i", spec["end_card"],
+           "-loop", "1", "-t", str(end_secs), "-i", end_card,
            "-f", "lavfi", "-t", str(end_secs), "-i", "anullsrc=r=48000:cl=stereo",
            "-filter_complex", fc, "-map", "[vo]", "-map", "[a]",
            "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",

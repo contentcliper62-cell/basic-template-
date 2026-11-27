@@ -7,7 +7,7 @@
   "captions": "clips/footage/clip3.srt",
   "captions_relative": "source",
   "fit": "blur",
-  "end_card": "clips/refs/KEY_ART.png",
+  "end_card": "clips/refs/cards/endcard_{phase}.png",
   "end_secs": 2.5,
   "output": "clips/out/clip3.mp4"
 }

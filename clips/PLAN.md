@@ -5,6 +5,7 @@ Premiere: **Sat., Nov. 28 at 10/9c on Lifetime** (TV-PG). Every clip is a tune-i
 ## Render
 
 ```bash
+python3 clips/make_cards.py   # end cards + covers from the key art (once)
 python3 clips/make_clip.py clips/specs/clip1.json --post-at 2026-11-28T13:00
 ```
 
