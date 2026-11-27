@@ -1,0 +1,13 @@
+{
+  "source": "clips/footage/SCENE_FILE_FROM_FRAMEIO.mp4",
+  "in": "00:00:00.0",
+  "out": "00:00:30.0",
+  "hook": "HOOK_TEXT",
+  "hook_secs": 3.0,
+  "captions": "clips/footage/clip2.srt",
+  "captions_relative": "source",
+  "fit": "blur",
+  "end_card": "clips/refs/KEY_ART.png",
+  "end_secs": 2.5,
+  "output": "clips/out/clip2.mp4"
+}
