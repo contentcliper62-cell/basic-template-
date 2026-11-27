@@ -1,13 +1,20 @@
 {
-  "source": "clips/footage/SCENE_FILE_FROM_FRAMEIO.mp4",
-  "in": "00:00:00.0",
-  "out": "00:00:30.0",
-  "hook": "HOOK_TEXT",
-  "hook_secs": 3.0,
-  "captions": "clips/footage/clip3.srt",
-  "captions_relative": "source",
-  "fit": "blur",
-  "end_card": "clips/refs/cards/endcard_{phase}.png",
-  "end_secs": 2.5,
-  "output": "clips/out/clip3.mp4"
+ "source": "clips/footage/trailer.mp4",
+ "captions": "clips/footage/trailer_words.json",
+ "fit": "blur",
+ "hook_secs": 3.0,
+ "end_card": "clips/refs/cards/endcard_{phase}.png",
+ "segments": [
+  [
+   0.0,
+   9.14
+  ],
+  [
+   27.85,
+   33.7
+  ]
+ ],
+ "end_secs": 2.5,
+ "hook": "Lifetime Christmas movie season\nis officially here.\nWould you take this assignment?",
+ "output": "clips/out/clip3_{phase}.mp4"
 }

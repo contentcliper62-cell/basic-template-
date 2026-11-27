@@ -17,6 +17,18 @@ What it outputs: 1080x1920 H.264/AAC, original movie audio, burned-in hook (firs
 captions + CTA banner (last 4 s + end card), 2.5 s key-art end card. It refuses anything
 outside 15-60 s. Use `fit: "blur"` for two-shots and `fit: "crop"` + `crop_x` for close-ups.
 
+## Rendered clips (from the official trailer, `clips/footage/trailer.mp4`)
+
+Each clip has a `_sat` version for Friday and a `_tonight` version for Saturday, in `clips/out/`.
+
+| Clip | Length | Source (trailer s) | Hook | Ends on (cliffhanger) | Cover |
+|---|---|---|---|---|---|
+| 1 | 15.5 s | 33.6-46.1 | Vivica A. Fox AND Jackée Harry in a Christmas movie? I'm seated | Jackée: "You blow this, you may not get another shot." | cover1 |
+| 2 | 18.7 s | 13.5-25.2, 48.9-54.3 | POV: your Thanksgiving weekend plans just changed | "...and the right person to tell it." Claire and Josh lean in | cover2 |
+| 3 | 17.5 s | 0-9.1, 27.9-33.7 | Lifetime Christmas movie season is officially here. Would you take this assignment? | Claire: "You want me to ransack his past and call it journalism?" | cover3 |
+
+Comment questions: clip 1 "Team Vivica or Team Jackée? 👇" · clip 2 "Would you check in? 🎄" · clip 3 "Would you take the assignment? Yes or no 👇"
+
 ## Picking scenes (from the Frame.io footage only)
 
 - 20-45 s of scene, one moment, cut **mid-tension**: the almost-kiss, the unanswered

@@ -1,13 +1,16 @@
 {
-  "source": "clips/footage/SCENE_FILE_FROM_FRAMEIO.mp4",
-  "in": "00:00:00.0",
-  "out": "00:00:30.0",
-  "hook": "HOOK_TEXT",
-  "hook_secs": 3.0,
-  "captions": "clips/footage/clip1.srt",
-  "captions_relative": "source",
-  "fit": "blur",
-  "end_card": "clips/refs/cards/endcard_{phase}.png",
-  "end_secs": 2.5,
-  "output": "clips/out/clip1.mp4"
+ "source": "clips/footage/trailer.mp4",
+ "captions": "clips/footage/trailer_words.json",
+ "fit": "blur",
+ "hook_secs": 3.0,
+ "end_card": "clips/refs/cards/endcard_{phase}.png",
+ "segments": [
+  [
+   33.62,
+   46.08
+  ]
+ ],
+ "end_secs": 3.0,
+ "hook": "Vivica A. Fox AND Jackée Harry\nin a Christmas movie?\nI'm seated",
+ "output": "clips/out/clip1_{phase}.mp4"
 }

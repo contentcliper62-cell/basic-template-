@@ -5,9 +5,10 @@
 
 Spec (JSON):
   source       path to the scene file from Frame.io (original footage, untouched)
+  segments     [[in, out], ...] to join several shots into one clip (overrides in/out)
   in, out      timestamps in the source ("00:12:03.5" or seconds). Cut ON the cliffhanger.
   hook         on-screen hook text, shown for the first `hook_secs` (default 3.0)
-  captions     path to an .srt for the cut (times relative to the source or to `in`, see
+  captions     path to a word-timestamp transcript (.json, from transcribe.py) OR an .srt for the cut (times relative to the source or to `in`, see
                captions_relative) OR a list of [start, end, "text"] relative to `in`
   captions_relative  "in" (default) or "source"
   fit          "crop" (fill frame, use crop_x 0..1 to pick the focus) or "blur" (whole
@@ -67,8 +68,35 @@ def ass_text(s: str) -> str:
     return s.replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", "\\N")
 
 
+def word_captions(path, segments, max_chars=30, max_gap=0.6):
+    """Short caption chunks from a word-timestamp transcript, remapped onto the cut."""
+    words = [w for seg in json.load(open(path)) for w in seg["words"]]
+    out, offset = [], 0.0
+    for a, b in segments:
+        chunk = []
+        def flush():
+            if chunk:
+                out.append((chunk[0][0], chunk[-1][1] + 0.15, " ".join(t for _, _, t in chunk).replace(" -", "-")))
+                chunk.clear()
+        for ws, we, t in words:
+            mid = (ws + we) / 2
+            if not a <= mid < b:
+                continue
+            ws, we, t = ws - a + offset, min(we, b) - a + offset, t.strip()
+            if chunk and (len(" ".join(x[2] for x in chunk)) + len(t) > max_chars
+                          or ws - chunk[-1][1] > max_gap or chunk[-1][2][-1] in ".?!"):
+                flush()
+            chunk.append((ws, we, t))
+        flush()
+        offset += b - a
+    # no overlaps; never run past the next chunk
+    return [(a, min(b, out[i + 1][0]) if i + 1 < len(out) else b, t) for i, (a, b, t) in enumerate(out)]
+
+
 def load_captions(spec, start, dur):
     cap = spec.get("captions") or []
+    if isinstance(cap, str) and cap.endswith(".json"):
+        return [c for c in word_captions(cap, spec["_segments"]) if c[0] < dur]
     rel = spec.get("captions_relative", "in")
     items = []
     if isinstance(cap, str):
@@ -100,7 +128,7 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Hook,{FONT},76,&H00FFFFFF,&H00FFFFFF,&H00203AB0,&H00203AB0,1,0,0,0,100,100,0,0,3,22,0,8,70,70,230,1
-Style: Cap,{FONT},62,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,5,2,2,80,80,560,1
+Style: Cap,{FONT},74,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,5,2,2,80,80,560,1
 Style: CTA,{FONT},50,&H00FFFFFF,&H00FFFFFF,&H00203AB0,&H00203AB0,1,0,0,0,100,100,0,0,3,18,0,2,70,70,330,1
 
 [Events]
@@ -133,27 +161,39 @@ def main():
     cta = spec.get("cta") or CTAS[phase]
     end_card = spec.get("end_card", "clips/refs/cards/endcard_{phase}.png").format(phase=phase)
 
-    start, end = secs(spec["in"]), secs(spec["out"])
-    dur = end - start
+    segments = [(secs(a), secs(b)) for a, b in spec["segments"]] if "segments" in spec \
+        else [(secs(spec["in"]), secs(spec["out"]))]
+    spec["_segments"] = segments
+    start = segments[0][0]
+    dur = sum(b - a for a, b in segments)
     end_secs = float(spec.get("end_secs", 2.5))
     if not 2 <= end_secs <= 3:
         sys.exit("end_secs must be 2-3 s")
     if not 15 <= dur + end_secs <= 60:
         sys.exit(f"clip would be {dur + end_secs:.1f}s; must be 15-60 s total")
 
-    out = spec["output"]
+    out = spec["output"].format(phase=phase)
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     tmp = tempfile.mkdtemp()
     ass = os.path.join(tmp, "overlay.ass")
     build_ass(ass, spec["hook"], float(spec.get("hook_secs", 3.0)),
               load_captions(spec, start, dur), cta, dur, end_secs)
 
+    # cut + join the source segments (tiny audio fades hide the joins)
+    parts = []
+    for i, (a, b) in enumerate(segments):
+        d = b - a
+        parts.append(f"[0:v]trim={a}:{b},setpts=PTS-STARTPTS[v{i}];"
+                     f"[0:a]atrim={a}:{b},asetpts=PTS-STARTPTS,afade=t=in:d=0.06,afade=t=out:st={d - 0.08}:d=0.08[a{i}]")
+    joins = "".join(f"[v{i}][a{i}]" for i in range(len(segments)))
+    cut = ";".join(parts) + f";{joins}concat=n={len(segments)}:v=1:a=1[src][srca]"
+
     fit = spec.get("fit", "blur")
     if fit == "crop":
         cx = float(spec.get("crop_x", 0.5))
-        scene = f"[0:v]scale=-2:{H},crop={W}:{H}:'(iw-{W})*{cx}':0,setsar=1,fps=30[sv]"
+        scene = f"[src]scale=-2:{H},crop={W}:{H}:'(iw-{W})*{cx}':0,setsar=1,fps=30[sv]"
     else:
-        scene = (f"[0:v]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+        scene = (f"[src]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
                  f"boxblur=30:3,eq=brightness=-0.12[bg];[b]scale={W}:-2[fg];"
                  f"[bg][fg]overlay=0:(H-h)/2,setsar=1,fps=30[sv]")
     card_is_vertical = abs(ffprobe_aspect(end_card) - W / H) < 0.02
@@ -161,13 +201,13 @@ def main():
             f"boxblur=40:3,eq=brightness=-0.2[cbg];[c2]scale={W - 120}:{H - 700}:force_original_aspect_ratio=decrease[cfg];"
             f"[cbg][cfg]overlay=(W-w)/2:(H-h)/2-120,setsar=1,fps=30,trim=duration={end_secs}[cv]")
     ass_esc = ass.replace(":", r"\:")
-    fc = (f"{scene};{card};"
-          f"[0:a]aresample=48000,afade=t=out:st={dur - 0.6}:d=0.6[sa];"
+    fc = (f"{cut};{scene};{card};"
+          f"[srca]aresample=48000,afade=t=out:st={dur - 0.6}:d=0.6[sa];"
           f"[2:a]atrim=duration={end_secs}[ca];"
           f"[sv][sa][cv][ca]concat=n=2:v=1:a=1[v][a];"
           f"[v]subtitles='{ass_esc}':fontsdir=/usr/share/fonts[vo]")
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-           "-ss", str(start), "-t", str(dur), "-i", spec["source"],
+           "-i", spec["source"],
            "-loop", "1", "-t", str(end_secs), "-i", end_card,
            "-f", "lavfi", "-t", str(end_secs), "-i", "anullsrc=r=48000:cl=stereo",
            "-filter_complex", fc, "-map", "[vo]", "-map", "[a]",
